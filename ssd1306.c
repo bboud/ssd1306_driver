@@ -9,6 +9,7 @@
 #include <ctype.h>
 
 #include "font.h"
+#include "sprite.h"
 
 static int device;
 static const char* interface = "/dev/i2c-1";
@@ -81,42 +82,51 @@ void displayOn(){
 }
 
 void clearDisplay(){
-	for(int page=0; page<8; page++){
-		unsigned char pap[] = {page+0xb0};
-		i2c_write(pap, 1, true);
-
-		unsigned char clear[128] = {0};
-		i2c_write(clear, 128, false);
+	for(int page = 0; page < 8; page++){
+		for(int col = 0; col < 128; col++){
+			frameBuffer[page][col] = 0x00;
+		}
 	}
 }
 
 void writeChar(char c, int page, int x){
-	c = toupper(c);
+	c = toupper(c) - 32;
 
-	//Clamp the col offset from char width
-	if(x > 123){
-		x = 123;
-	}else if(x < 0){
-		x = 0;
-	};
-
-	if(page > 7 || page < 0){
-		printf("Page out of bound.. Writing to page 1\n");
-		page = 1;
+	if(page > 7 || page < 0 || x < 0 || x > 127){
+		return;
 	}
-
 	
 	//Look up the character on the table
 	//Loop through the 5 columns of the table
-	
-	for(int i = 0; i<5; i++){
-		frameBuffer[page][x+i] = characters[c-32][i];
+	//
+	//The 0 element of the font contains the length in columns of the character.
+	//For this reason, we start the loop at 1 and use greater than or equal
+	for(int i = 1; i <= characters[c][0]; i++){
+		if(x+i > 127){
+			return;
+		}
+		frameBuffer[page][x+i] = characters[c][i];
 	}
 }
 
 void writeLine(char *line, int page, int offset){
 	for(int i=0; line[i] != '\0'; i++){
 		writeChar(line[i], page, offset+i*6);
+	}
+}
+
+void drawSprite(int page, int x){
+	printf("sprite %d\n", sizeof(sprite));
+	for(int i=0; i < 3; i++){
+		if (page-i < 0){
+			break;
+		}
+		for(int j=0; j < sizeof(sprite[page]); j++){
+			if(x+j > 127){
+				break;
+			}
+			frameBuffer[page-i][x+j] = sprite[i][j];
+		}
 	}
 }
 
@@ -146,9 +156,9 @@ int main(){
 
 	clearDisplay();
 
-	for(int i = 0; i < 8; i++){
-                writeLine("PAGE", i, 0);
-        }
+	writeLine("Text y sprites work!", 0, 0);
+
+	drawSprite(4, 35);
 
 	updateDisplay();
 
