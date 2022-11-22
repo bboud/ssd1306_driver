@@ -14,8 +14,7 @@ static int device;
 static const char* interface = "/dev/i2c-1";
 static const int addr = 0x3c;
 static bool initialized = false;
-static const unsigned char initSeq[] = { 0xae, 0xa8, 0x35, 0xd3, 0x00, 0x40, 0xa1, 0xc0, 0xda, 0x12, 0x81, 0x7f, 0xa4, 0xa6, 0xd5, 0x00, 0x8d, 0x14, 0xaf};	
-
+static const unsigned char initSeq[] = { 0xae, 0xa8, 0x35, 0xd3, 0x00, 0x40, 0xa1, 0xc0, 0xda, 0x12, 0x81, 0x7f, 0xa4, 0xa6, 0xd5, 0x00, 0x8d, 0x14, 0x20, 0x00, 0xaf};
 static unsigned char frameBuffer[8][128] = {0};
 
 //This error handling should be better handled later..
@@ -35,6 +34,7 @@ int i2c_write(unsigned char *msg, int nmsg, bool command){
 
 	if(device < 1){
 		error_handle();
+		return -1;
 	}
 
 	if( ioctl(device, I2C_SLAVE, addr) < 0){
@@ -67,7 +67,7 @@ int i2c_write(unsigned char *msg, int nmsg, bool command){
 void initialize(){
 	initialized = true;
 
-	i2c_write((unsigned char*)initSeq, 19, true);
+	i2c_write((unsigned char*)initSeq, sizeof(initSeq), true);
 }
 
 void displayOff(){
@@ -116,24 +116,23 @@ void writeChar(char c, int page, int x){
 
 void writeLine(char *line, int page, int offset){
 	for(int i=0; line[i] != '\0'; i++){
-		printf("%d  ", line[i]);	
 		writeChar(line[i], page, offset+i*6);
 	}
 }
 
 void updateDisplay(){
-	unsigned char pageAddrPtr[] = { 0xb7 };
-	i2c_write(pageAddrPtr, 1, true);
+	unsigned char fullRange[] = { 0x21, 0x00, 0x7f, 0x22, 0x00, 0x07 };
+	i2c_write(fullRange, 6, true);
+
 	for(int page = 0; page < 8; page++){
 		i2c_write(frameBuffer[page], 128, false);
-		pageAddrPtr[0]-=1;
-		i2c_write(pageAddrPtr, 1, true);
 	}
 }
 
 
 void dumpFrameBuffer(){
 	for(int i = 0; i < 8; i++){
+		printf("PAGE %d\n", i);
 		for(int j = 0; j < 128; j++){
 			printf("%d", frameBuffer[i][j]);
 		}
@@ -145,23 +144,15 @@ int main(){
 
 	initialize();
 
-	unsigned char MODE[] = { 0x20, 0x02 }; //Page Mode
-	i2c_write(MODE, 2, true);
-
 	clearDisplay();
 
-	writeChar(' ', 2, 15);
+	for(int i = 0; i < 8; i++){
+                writeLine("PAGE", i, 0);
+        }
 
-	writeChar('m', 6, 6);
+	updateDisplay();
 
 	dumpFrameBuffer();
-
-
-	writeLine("This is a string", 2, 0);
-	writeLine("Woah!", 3, 5);
-
-	
-	updateDisplay();
 
 	return 0;
 }
